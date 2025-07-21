@@ -15,4 +15,6 @@
   align-self: flex-start;
 }
 
-/*# sourceMappingURL=style.css.map */
+.mes_wtracker_button.spinning {
+  animation: spin 2s linear infinite;
+}

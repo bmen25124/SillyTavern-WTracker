@@ -27,6 +27,7 @@ const defaultSettings: ExtensionSettings = {
 // Keys for extension settings
 const EXTENSION_KEY = 'WTracker';
 const CHAT_METADATA_SCHEMA_VALUE_KEY = 'schemaValue';
+const CHAT_MESSAGE_SCHEMA_VALUE_KEY = 'value';
 
 const globalContext = SillyTavern.getContext();
 const settingsManager = new ExtensionSettingsManager<ExtensionSettings>(EXTENSION_KEY, defaultSettings);
@@ -52,7 +53,7 @@ async function initUI() {
   // WTracker icon to message buttons
   const wTrackerIcon = document.createElement('div');
   wTrackerIcon.title = 'WTracker';
-  wTrackerIcon.className = 'mes_button mes_wtracker_button fa-solid fa-train-tunnel interactable';
+  wTrackerIcon.className = 'mes_button mes_wtracker_button fa-solid fa-truck-moving interactable';
   wTrackerIcon.tabIndex = 0;
   const messageTemplate = document.querySelector('#message_template .mes_buttons .extraMesButtons');
   if (messageTemplate) {
@@ -389,7 +390,20 @@ async function generateTracker(id: number) {
         temperature: 0.8,
       },
     )) as ExtractedData;
+    if (!rest.content || Object.keys(rest.content as any).length === 0) {
+      await st_echo('error', 'No response received from WTracker.');
+      return;
+    }
     console.log('Response from WTracker:', rest);
+
+    if (!message.extra) {
+      message.extra = {};
+    }
+    if (!message.extra[EXTENSION_KEY]) {
+      message.extra[EXTENSION_KEY] = {};
+    }
+    message.extra[EXTENSION_KEY][CHAT_MESSAGE_SCHEMA_VALUE_KEY] = rest.content;
+    await globalContext.saveChat();
   } catch (error) {
   } finally {
     pendingRequests.delete(id);
