@@ -1,0 +1,18 @@
+.wtracker-settings .wtracker-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.wtracker-settings .setting-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.wtracker-settings .setting-row:last-child {
+  margin-top: 10px;
+}
+.wtracker-settings .setting-row button {
+  align-self: flex-start;
+}
+
+/*# sourceMappingURL=style.css.map */

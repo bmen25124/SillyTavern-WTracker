@@ -1,0 +1,26 @@
+.wtracker-settings {
+    .wtracker-container {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .setting-row {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+
+        &:last-child {
+            margin-top: 10px;
+        }
+
+        button {
+            align-self: flex-start;
+        }
+    }
+}
+
+.mes_wtracker_button.spinning {
+    animation: spin 2s linear infinite;
+}
+
