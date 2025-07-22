@@ -32,13 +32,19 @@
                     <div>
                         <label>Schema</label>
                         <button
-                            class="menu_button fa-solid fa-undo interactable restore_default"
+                            class="menu_button fa-solid fa-undo interactable wtracker_schema_preset_restore_default"
                             data-i18n="[title]Restore default"
                             title="Restore default"
                         ></button>
                     </div>
 
                     <textarea id="wtracker_schema" class="text_pole textarea_compact" rows="4"></textarea>
+                    <textarea
+                        id="wtracker_schema_html"
+                        class="text_pole textarea_compact"
+                        rows="4"
+                        placeholder="Enter your schema HTML here..."
+                    ></textarea>
                 </div>
                 <div class="setting-row">
                     <label>Prompt</label>
@@ -49,7 +55,7 @@
                         placeholder="Enter your prompt here..."
                     ></textarea>
                     <button
-                        class="menu_button fa-solid fa-undo interactable restore_default"
+                        class="menu_button fa-solid fa-undo interactable prompt_restore_default"
                         data-i18n="[title]Restore default"
                         title="Restore default"
                     ></button>

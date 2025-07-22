@@ -2,8 +2,19 @@ import { buildPresetSelect, buildPrompt, ExtensionSettingsManager } from 'sillyt
 import { EventNames, ExtractedData } from 'sillytavern-utils-lib/types';
 import { characters, selected_group, st_echo } from 'sillytavern-utils-lib/config';
 import { AutoModeOptions } from 'sillytavern-utils-lib/types/translate';
-import { DEFAULT_PROMPT, DEFAULT_SCHEMA_VALUE, ExtensionSettings } from './config.js';
+import { DEFAULT_PROMPT, DEFAULT_SCHEMA_HTML, DEFAULT_SCHEMA_VALUE, ExtensionSettings } from './config.js';
 import { POPUP_RESULT } from 'sillytavern-utils-lib/types/popup';
+
+import * as Handlebars from 'handlebars';
+
+if (!Handlebars.helpers['join']) {
+  Handlebars.registerHelper('join', function (array: any, separator: any) {
+    if (Array.isArray(array)) {
+      return array.join(typeof separator === 'string' ? separator : ', ');
+    }
+    return '';
+  });
+}
 
 const VERSION = '0.1.0';
 const FORMAT_VERSION = 'F_1.0';
@@ -19,6 +30,7 @@ const defaultSettings: ExtensionSettings = {
     default: {
       name: 'Default',
       value: DEFAULT_SCHEMA_VALUE,
+      html: DEFAULT_SCHEMA_HTML,
     },
   },
   prompt: DEFAULT_PROMPT,
@@ -27,7 +39,9 @@ const defaultSettings: ExtensionSettings = {
 // Keys for extension settings
 const EXTENSION_KEY = 'WTracker';
 const CHAT_METADATA_SCHEMA_VALUE_KEY = 'schemaValue';
+const CHAT_METADATA_SCHEMA_HTML_KEY = 'schemaHtml';
 const CHAT_MESSAGE_SCHEMA_VALUE_KEY = 'value';
+const CHAT_MESSAGE_SCHEMA_HTML_KEY = 'html';
 
 const globalContext = SillyTavern.getContext();
 const settingsManager = new ExtensionSettingsManager<ExtensionSettings>(EXTENSION_KEY, defaultSettings);
@@ -161,6 +175,50 @@ async function initUI() {
       },
     );
   });
+
+  // Modify schema HTML of current chat
+  extensionsMenu?.querySelector('#wtracker_modify_html')?.addEventListener('click', async () => {
+    const context = SillyTavern.getContext();
+    if (!context.chatMetadata) {
+      return;
+    }
+    if (!context.chatMetadata[EXTENSION_KEY]) {
+      context.chatMetadata[EXTENSION_KEY] = {};
+      context.saveMetadataDebounced();
+    }
+    if (!context.chatMetadata[EXTENSION_KEY][CHAT_METADATA_SCHEMA_HTML_KEY]) {
+      if (!settings.schemaPreset) {
+        await st_echo(
+          'error',
+          'Chat metadata schema HTML is not set. Please select a schema preset first in the settings.',
+        );
+        return;
+      } else {
+        context.chatMetadata[EXTENSION_KEY][CHAT_METADATA_SCHEMA_HTML_KEY] =
+          settings.schemaPresets[settings.schemaPreset].html;
+        context.saveMetadataDebounced();
+      }
+    }
+    const chatHtmlValue = context.chatMetadata[EXTENSION_KEY][CHAT_METADATA_SCHEMA_HTML_KEY];
+    await globalContext.Popup.show.input(
+      'Modify WTracker Schema HTML',
+      'Enter the new schema HTML value:',
+      chatHtmlValue,
+      {
+        wider: true,
+        large: true,
+        rows: 16,
+        onClose(popup) {
+          const result = popup.result as POPUP_RESULT;
+          if (result === POPUP_RESULT.AFFIRMATIVE) {
+            context.chatMetadata[EXTENSION_KEY][CHAT_METADATA_SCHEMA_HTML_KEY] = popup.mainInput.value;
+            context.saveMetadataDebounced();
+            st_echo('success', 'Schema HTML updated successfully.');
+          }
+        },
+      },
+    );
+  });
 }
 
 async function initSettingsUI() {
@@ -193,8 +251,10 @@ async function initSettingsUI() {
   // Schema Presets
   const schemaPresetSelect = settingsContainer.querySelector('#wtracker_schema_preset') as HTMLSelectElement;
   const schemaTextArea = settingsContainer.querySelector('#wtracker_schema') as HTMLTextAreaElement;
+  const schemaHtmlTextArea = settingsContainer.querySelector('#wtracker_schema_html') as HTMLTextAreaElement;
   schemaPresetSelect.value = settings.schemaPreset;
   schemaTextArea.value = JSON.stringify(settings.schemaPresets[settings.schemaPreset].value, null, 2);
+  schemaHtmlTextArea.value = settings.schemaPresets[settings.schemaPreset].html;
   buildPresetSelect('#wtracker_schema_preset', {
     initialList: Object.entries(settings.schemaPresets).map(([name, preset]) => ({
       label: preset.name,
@@ -207,6 +267,7 @@ async function initSettingsUI() {
       settings.schemaPreset = newPresetValue;
 
       schemaTextArea.value = JSON.stringify(preset.value, null, 2);
+      schemaHtmlTextArea.value = preset.html;
 
       settingsManager.saveSettings();
     },
@@ -214,7 +275,8 @@ async function initSettingsUI() {
       onAfterCreate: (value) => {
         settings.schemaPresets[globalContext.uuidv4()] = {
           name: value,
-          value: {},
+          value: settings.schemaPresets[schemaPresetSelect.value].value,
+          html: DEFAULT_SCHEMA_HTML,
         };
       },
     },
@@ -231,10 +293,17 @@ async function initSettingsUI() {
   });
 
   // Restore default schema
-  const restoreDefaultButton = settingsContainer.querySelector('.restore_default') as HTMLButtonElement;
+  const restoreDefaultButton = settingsContainer.querySelector(
+    '.wtracker_schema_preset_restore_default',
+  ) as HTMLButtonElement;
   restoreDefaultButton.addEventListener('click', () => {
     schemaTextArea.value = JSON.stringify(DEFAULT_SCHEMA_VALUE, null, 2);
-    settingsManager.saveSettings();
+    schemaHtmlTextArea.value = DEFAULT_SCHEMA_HTML;
+    schemaPresetSelect.value = 'default';
+
+    schemaHtmlTextArea.dispatchEvent(new Event('change'));
+    schemaTextArea.dispatchEvent(new Event('change'));
+    schemaPresetSelect.dispatchEvent(new Event('change'));
   });
 
   // Schema Text Area
@@ -247,6 +316,11 @@ async function initSettingsUI() {
       console.error('Invalid JSON:', error);
     }
   });
+  // Schema HTML Text Area
+  schemaHtmlTextArea.addEventListener('change', () => {
+    settings.schemaPresets[schemaPresetSelect.value].html = schemaHtmlTextArea.value;
+    settingsManager.saveSettings();
+  });
 
   // Prompt Text Area
   const promptTextArea = settingsContainer.querySelector('#wtracker_prompt') as HTMLTextAreaElement;
@@ -256,7 +330,7 @@ async function initSettingsUI() {
     settingsManager.saveSettings();
   });
   // Restore default prompt
-  const restorePromptButton = settingsContainer.querySelector('.restore_default') as HTMLButtonElement;
+  const restorePromptButton = settingsContainer.querySelector('.prompt_restore_default') as HTMLButtonElement;
   restorePromptButton.addEventListener('click', () => {
     promptTextArea.value = DEFAULT_PROMPT;
     settings.prompt = DEFAULT_PROMPT;
@@ -311,6 +385,48 @@ async function resetSettingsToDefaults() {
 }
 
 const pendingRequests = new Set<number>();
+
+function renderTracker(messageId: number) {
+  const context = SillyTavern.getContext();
+  const message = context.chat[messageId];
+  if (!message || !message.extra || !message.extra[EXTENSION_KEY]) {
+    return;
+  }
+
+  const trackerData = message.extra[EXTENSION_KEY][CHAT_MESSAGE_SCHEMA_VALUE_KEY];
+  const trackerHtmlSchema = message.extra[EXTENSION_KEY][CHAT_MESSAGE_SCHEMA_HTML_KEY];
+
+  if (!trackerData || !trackerHtmlSchema) {
+    return;
+  }
+
+  const messageBlock = document.querySelector(`.mes[mesid="${messageId}"]`);
+  if (!messageBlock) {
+    return;
+  }
+
+  const existingRender = messageBlock.querySelector('.mes_wtracker');
+  if (existingRender) {
+    existingRender.remove();
+  }
+
+  try {
+    const template = Handlebars.compile(trackerHtmlSchema);
+    const renderedHtml = template({ data: trackerData });
+
+    const mesText = messageBlock.querySelector('.mes_text');
+    if (mesText) {
+      const container = document.createElement('div');
+      container.className = 'mes_wtracker';
+      container.innerHTML = renderedHtml;
+      mesText.before(container);
+    }
+  } catch (error) {
+    console.error('Error rendering WTracker template:', error);
+    st_echo('error', 'Failed to render WTracker HTML. Check template syntax.');
+  }
+}
+
 async function generateTracker(id: number) {
   const message = SillyTavern.getContext().chat[id];
   if (!message) {
@@ -339,7 +455,21 @@ async function generateTracker(id: number) {
       context.saveMetadataDebounced();
     }
   }
+  if (!context.chatMetadata[EXTENSION_KEY][CHAT_METADATA_SCHEMA_HTML_KEY]) {
+    if (!settings.schemaPreset) {
+      await st_echo(
+        'error',
+        'Chat metadata schema HTML is not set. Please select a schema preset first in the settings.',
+      );
+      return;
+    } else {
+      context.chatMetadata[EXTENSION_KEY][CHAT_METADATA_SCHEMA_HTML_KEY] =
+        settings.schemaPresets[settings.schemaPreset].html;
+      context.saveMetadataDebounced();
+    }
+  }
   const chatJsonValue = context.chatMetadata[EXTENSION_KEY][CHAT_METADATA_SCHEMA_VALUE_KEY];
+  const chatHtmlValue = context.chatMetadata[EXTENSION_KEY][CHAT_METADATA_SCHEMA_HTML_KEY];
 
   const profile = context.extensionSettings.connectionManager?.profiles?.find(
     (profile) => profile.id === settings.profileId,
@@ -403,8 +533,12 @@ async function generateTracker(id: number) {
       message.extra[EXTENSION_KEY] = {};
     }
     message.extra[EXTENSION_KEY][CHAT_MESSAGE_SCHEMA_VALUE_KEY] = rest.content;
+    message.extra[EXTENSION_KEY][CHAT_MESSAGE_SCHEMA_HTML_KEY] = chatHtmlValue;
     await globalContext.saveChat();
+    renderTracker(id);
   } catch (error) {
+    console.error('Error generating tracker:', error);
+    st_echo('error', 'An error occurred while generating the tracker.');
   } finally {
     pendingRequests.delete(id);
     currentButton?.classList.remove('spinning');

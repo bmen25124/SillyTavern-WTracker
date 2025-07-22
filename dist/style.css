@@ -18,3 +18,27 @@
 .mes_wtracker_button.spinning {
   animation: spin 2s linear infinite;
 }
+
+.mes_wtracker .wtracker_default_mes_template {
+  font-size: smaller;
+}
+.mes_wtracker .wtracker_default_mes_template tr td {
+  vertical-align: top;
+}
+.mes_wtracker .wtracker_default_mes_template tr td:first-child {
+  text-align: right;
+  font-weight: bold;
+  width: 60px;
+}
+.mes_wtracker .wtracker_default_mes_template details summary {
+  font-weight: bold;
+}
+.mes_wtracker .wtracker_default_mes_template details summary span {
+  left: -3.25px;
+  position: relative;
+  display: inline-block;
+}
+.mes_wtracker .wtracker_default_mes_template details table,
+.mes_wtracker .wtracker_default_mes_template details .mes_wtracker_characters {
+  padding-left: 20px;
+}
