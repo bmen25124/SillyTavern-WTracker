@@ -1,4 +1,4 @@
-import { buildPresetSelect, buildPrompt, ExtensionSettingsManager } from 'sillytavern-utils-lib';
+import { buildPresetSelect, buildPrompt, ExtensionSettingsManager, Message } from 'sillytavern-utils-lib';
 import { EventNames, ExtractedData } from 'sillytavern-utils-lib/types';
 import { characters, selected_group, st_echo } from 'sillytavern-utils-lib/config';
 import { AutoModeOptions } from 'sillytavern-utils-lib/types/translate';
@@ -34,6 +34,8 @@ const defaultSettings: ExtensionSettings = {
     },
   },
   prompt: DEFAULT_PROMPT,
+  includeLastXMessages: 0,
+  includeLastXWTrackerMessages: 1,
 };
 
 // Keys for extension settings
@@ -48,6 +50,47 @@ const settingsManager = new ExtensionSettingsManager<ExtensionSettings>(EXTENSIO
 
 const incomingTypes = [AutoModeOptions.RESPONSES, AutoModeOptions.BOTH];
 const outgoingTypes = [AutoModeOptions.INPUT, AutoModeOptions.BOTH];
+
+function renderTracker(messageId: number) {
+  const context = SillyTavern.getContext();
+  const message = context.chat[messageId];
+  if (!message || !message.extra || !message.extra[EXTENSION_KEY]) {
+    return;
+  }
+
+  const trackerData = message.extra[EXTENSION_KEY][CHAT_MESSAGE_SCHEMA_VALUE_KEY];
+  const trackerHtmlSchema = message.extra[EXTENSION_KEY][CHAT_MESSAGE_SCHEMA_HTML_KEY];
+
+  if (!trackerData || !trackerHtmlSchema) {
+    return;
+  }
+
+  const messageBlock = document.querySelector(`.mes[mesid="${messageId}"]`);
+  if (!messageBlock) {
+    return;
+  }
+
+  const existingRender = messageBlock.querySelector('.mes_wtracker');
+  if (existingRender) {
+    existingRender.remove();
+  }
+
+  try {
+    const template = Handlebars.compile(trackerHtmlSchema);
+    const renderedHtml = template({ data: trackerData });
+
+    const mesText = messageBlock.querySelector('.mes_text');
+    if (mesText) {
+      const container = document.createElement('div');
+      container.className = 'mes_wtracker';
+      container.innerHTML = renderedHtml;
+      mesText.before(container);
+    }
+  } catch (error) {
+    console.error('Error rendering WTracker template:', error);
+    st_echo('error', 'Failed to render WTracker HTML. Check template syntax.');
+  }
+}
 
 async function initUI() {
   // Render and append settings UI
@@ -99,6 +142,13 @@ async function initUI() {
   globalContext.eventSource.makeFirst(EventNames.USER_MESSAGE_RENDERED, async (messageId: number) => {
     if (outgoingTypes.includes(settings.autoMode)) {
       await generateTracker(messageId);
+    }
+  });
+
+  globalContext.eventSource.on(EventNames.CHAT_CHANGED, () => {
+    const context = SillyTavern.getContext();
+    for (let i = 0; i < context.chat.length; i++) {
+      renderTracker(i);
     }
   });
 
@@ -351,6 +401,38 @@ async function initSettingsUI() {
     }
   });
 
+  // Include Last X Messages
+  const includeLastXMessagesInput = settingsContainer.querySelector(
+    '#wtracker_include_last_x_messages',
+  ) as HTMLInputElement;
+  includeLastXMessagesInput.value = settings.includeLastXMessages.toString();
+  includeLastXMessagesInput.addEventListener('input', () => {
+    const value = parseInt(includeLastXMessagesInput.value, 10);
+    if (!isNaN(value) && value >= 0) {
+      settings.includeLastXMessages = value;
+      settingsManager.saveSettings();
+    } else {
+      st_echo('error', 'Include last X messages must be a non-negative integer');
+      includeLastXMessagesInput.value = settings.includeLastXMessages.toString();
+    }
+  });
+
+  // Include Last X WTracker Messages
+  const includeLastXWTrackerMessagesInput = settingsContainer.querySelector(
+    '#wtracker_include_last_x_wtracker_messages',
+  ) as HTMLInputElement;
+  includeLastXWTrackerMessagesInput.value = settings.includeLastXWTrackerMessages.toString();
+  includeLastXWTrackerMessagesInput.addEventListener('input', () => {
+    const value = parseInt(includeLastXWTrackerMessagesInput.value, 10);
+    if (!isNaN(value) && value >= 0) {
+      settings.includeLastXWTrackerMessages = value;
+      settingsManager.saveSettings();
+    } else {
+      st_echo('error', 'Include last X WTracker messages must be a non-negative integer');
+      includeLastXWTrackerMessagesInput.value = settings.includeLastXWTrackerMessages.toString();
+    }
+  });
+
   // Reset Button
   const resetButton = settingsContainer.querySelector('#wtracker_reset_button') as HTMLButtonElement;
   if (resetButton) {
@@ -385,47 +467,6 @@ async function resetSettingsToDefaults() {
 }
 
 const pendingRequests = new Set<number>();
-
-function renderTracker(messageId: number) {
-  const context = SillyTavern.getContext();
-  const message = context.chat[messageId];
-  if (!message || !message.extra || !message.extra[EXTENSION_KEY]) {
-    return;
-  }
-
-  const trackerData = message.extra[EXTENSION_KEY][CHAT_MESSAGE_SCHEMA_VALUE_KEY];
-  const trackerHtmlSchema = message.extra[EXTENSION_KEY][CHAT_MESSAGE_SCHEMA_HTML_KEY];
-
-  if (!trackerData || !trackerHtmlSchema) {
-    return;
-  }
-
-  const messageBlock = document.querySelector(`.mes[mesid="${messageId}"]`);
-  if (!messageBlock) {
-    return;
-  }
-
-  const existingRender = messageBlock.querySelector('.mes_wtracker');
-  if (existingRender) {
-    existingRender.remove();
-  }
-
-  try {
-    const template = Handlebars.compile(trackerHtmlSchema);
-    const renderedHtml = template({ data: trackerData });
-
-    const mesText = messageBlock.querySelector('.mes_text');
-    if (mesText) {
-      const container = document.createElement('div');
-      container.className = 'mes_wtracker';
-      container.innerHTML = renderedHtml;
-      mesText.before(container);
-    }
-  } catch (error) {
-    console.error('Error rendering WTracker template:', error);
-    st_echo('error', 'Failed to render WTracker HTML. Check template syntax.');
-  }
-}
 
 async function generateTracker(id: number) {
   const message = SillyTavern.getContext().chat[id];
@@ -498,6 +539,7 @@ async function generateTracker(id: number) {
       targetCharacterId: characterId,
       messageIndexesBetween: {
         end: id,
+        start: settings.includeLastXMessages > 0 ? Math.max(0, id - settings.includeLastXMessages) : 0,
       },
       presetName: profile?.preset,
       contextName: profile?.context,
@@ -505,7 +547,44 @@ async function generateTracker(id: number) {
       syspromptName: profile?.sysprompt,
       includeNames: !!selected_group,
     });
-    const messages = promptResult.result;
+    let messages = promptResult.result;
+    // Include the last X WTracker messages if specified
+    if (settings.includeLastXWTrackerMessages > 0) {
+      for (let i = 0; i < settings.includeLastXWTrackerMessages; i++) {
+        let foundMessage: Message | null = null;
+        let foundIndex = -1;
+        for (let j = messages.length - 1 - 1; j >= 0; j--) {
+          // Additional -1 means, we skip the current message
+          if (
+            // @ts-ignore
+            !messages[j].wTrackerFound &&
+            messages[j].source?.extra?.[EXTENSION_KEY]?.[CHAT_MESSAGE_SCHEMA_VALUE_KEY]
+          ) {
+            // @ts-ignore
+            messages[j].wTrackerFound = true;
+            foundMessage = messages[j];
+            foundIndex = j;
+            break;
+          }
+        }
+        if (foundMessage) {
+          const content = `Tracker:
+\`\`\`json
+${JSON.stringify(foundMessage.source?.extra?.[EXTENSION_KEY]?.[CHAT_MESSAGE_SCHEMA_VALUE_KEY] || '{}', null, 2)}
+\`\`\`
+`;
+          messages = [
+            ...messages.slice(0, foundIndex + 1),
+            {
+              content,
+              role: 'user',
+            },
+            ...messages.slice(foundIndex + 1),
+          ];
+        }
+      }
+    }
+
     messages.push({
       content: settings.prompt,
       role: 'user',

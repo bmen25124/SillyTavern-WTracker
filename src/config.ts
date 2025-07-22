@@ -15,6 +15,8 @@ export interface ExtensionSettings {
   schemaPreset: string;
   schemaPresets: Record<string, Schema>;
   prompt: string;
+  includeLastXMessages: number; // 0 means all messages
+  includeLastXWTrackerMessages: number; // 0 means none
 }
 
 export const extensionName = 'SillyTavern-WTracker';

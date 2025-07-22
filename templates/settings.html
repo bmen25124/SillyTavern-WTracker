@@ -71,6 +71,30 @@
                         placeholder="Enter max response tokens"
                     />
                 </div>
+                <div class="setting-row">
+                    <label>Include Last X Messages</label>
+                    <input
+                        id="wtracker_include_last_x_messages"
+                        type="number"
+                        class="text_pole"
+                        min="0"
+                        step="1"
+                        title="Number of recent messages to include in the context. 0 means all messages."
+                        placeholder="0 for all"
+                    />
+                </div>
+                <div class="setting-row">
+                    <label>Include Last X WTracker Messages</label>
+                    <input
+                        id="wtracker_include_last_x_wtracker_messages"
+                        type="number"
+                        class="text_pole"
+                        min="0"
+                        step="1"
+                        title="Number of recent WTracker messages to include in the context. 0 means none."
+                        placeholder="0 for none"
+                    />
+                </div>
             </div>
         </div>
     </div>
