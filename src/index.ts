@@ -1,6 +1,6 @@
 import { buildPresetSelect, buildPrompt, ExtensionSettingsManager, Message } from 'sillytavern-utils-lib';
-import { EventNames, ExtractedData } from 'sillytavern-utils-lib/types';
-import { characters, selected_group, st_echo } from 'sillytavern-utils-lib/config';
+import { ChatMessage, EventNames, ExtractedData } from 'sillytavern-utils-lib/types';
+import { characters, name1, selected_group, st_echo } from 'sillytavern-utils-lib/config';
 import { AutoModeOptions } from 'sillytavern-utils-lib/types/translate';
 import { DEFAULT_PROMPT, DEFAULT_SCHEMA_HTML, DEFAULT_SCHEMA_VALUE, ExtensionSettings } from './config.js';
 import { POPUP_RESULT } from 'sillytavern-utils-lib/types/popup';
@@ -92,6 +92,54 @@ function renderTracker(messageId: number) {
   }
 }
 
+function includeWTrackerMessages<T extends Message | ChatMessage>(messages: T[], settings: ExtensionSettings): T[] {
+  if (settings.includeLastXWTrackerMessages > 0) {
+    for (let i = 0; i < settings.includeLastXWTrackerMessages; i++) {
+      let foundMessage: T | null = null;
+      let foundIndex = -1;
+      for (let j = messages.length - 1 - 1; j >= 0; j--) {
+        // Additional -1 means, we skip the current message
+        const message = messages[j];
+        const extra = 'source' in message ? (message as Message).source?.extra : (message as ChatMessage).extra;
+        if (
+          // @ts-ignore
+          !message.wTrackerFound &&
+          extra?.[EXTENSION_KEY]?.[CHAT_MESSAGE_SCHEMA_VALUE_KEY]
+        ) {
+          // @ts-ignore
+          message.wTrackerFound = true;
+          foundMessage = message;
+          foundIndex = j;
+          break;
+        }
+      }
+      if (foundMessage) {
+        const extra =
+          'source' in foundMessage ? (foundMessage as Message).source?.extra : (foundMessage as ChatMessage).extra;
+        const content = `Tracker:
+\`\`\`json
+${JSON.stringify(extra?.[EXTENSION_KEY]?.[CHAT_MESSAGE_SCHEMA_VALUE_KEY] || '{}', null, 2)}
+\`\`\`
+`;
+        const newMessages = [
+          ...messages.slice(0, foundIndex + 1),
+          {
+            content,
+            role: 'user',
+            name: name1,
+            is_user: true,
+            mes: content,
+            is_system: false,
+          } as unknown as T,
+          ...messages.slice(foundIndex + 1),
+        ];
+        messages = newMessages;
+      }
+    }
+  }
+  return messages;
+}
+
 async function initUI() {
   // Render and append settings UI
   const settingsHtml = await globalContext.renderExtensionTemplateAsync(
@@ -151,6 +199,16 @@ async function initUI() {
       renderTracker(i);
     }
   });
+
+  // @ts-ignore
+  globalThis.wtrackerGenerateInterceptor = async function (chat: ChatMessage[]) {
+    const settings = settingsManager.getSettings();
+    const newChat = includeWTrackerMessages(chat, settings);
+
+    // Reassign
+    chat.length = 0;
+    chat.push(...newChat);
+  };
 
   // Modify schema of current chat
   const extensionsMenu = document.querySelector('#extensionsMenu');
@@ -548,42 +606,7 @@ async function generateTracker(id: number) {
       includeNames: !!selected_group,
     });
     let messages = promptResult.result;
-    // Include the last X WTracker messages if specified
-    if (settings.includeLastXWTrackerMessages > 0) {
-      for (let i = 0; i < settings.includeLastXWTrackerMessages; i++) {
-        let foundMessage: Message | null = null;
-        let foundIndex = -1;
-        for (let j = messages.length - 1 - 1; j >= 0; j--) {
-          // Additional -1 means, we skip the current message
-          if (
-            // @ts-ignore
-            !messages[j].wTrackerFound &&
-            messages[j].source?.extra?.[EXTENSION_KEY]?.[CHAT_MESSAGE_SCHEMA_VALUE_KEY]
-          ) {
-            // @ts-ignore
-            messages[j].wTrackerFound = true;
-            foundMessage = messages[j];
-            foundIndex = j;
-            break;
-          }
-        }
-        if (foundMessage) {
-          const content = `Tracker:
-\`\`\`json
-${JSON.stringify(foundMessage.source?.extra?.[EXTENSION_KEY]?.[CHAT_MESSAGE_SCHEMA_VALUE_KEY] || '{}', null, 2)}
-\`\`\`
-`;
-          messages = [
-            ...messages.slice(0, foundIndex + 1),
-            {
-              content,
-              role: 'user',
-            },
-            ...messages.slice(foundIndex + 1),
-          ];
-        }
-      }
-    }
+    messages = includeWTrackerMessages(messages, settings);
 
     messages.push({
       content: settings.prompt,
