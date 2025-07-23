@@ -93,13 +93,14 @@ function renderTracker(messageId: number) {
 }
 
 function includeWTrackerMessages<T extends Message | ChatMessage>(messages: T[], settings: ExtensionSettings): T[] {
+  let copyMessages = structuredClone(messages);
   if (settings.includeLastXWTrackerMessages > 0) {
     for (let i = 0; i < settings.includeLastXWTrackerMessages; i++) {
       let foundMessage: T | null = null;
       let foundIndex = -1;
-      for (let j = messages.length - 1 - 1; j >= 0; j--) {
+      for (let j = copyMessages.length - 1 - 1; j >= 0; j--) {
         // Additional -1 means, we skip the current message
-        const message = messages[j];
+        const message = copyMessages[j];
         const extra = 'source' in message ? (message as Message).source?.extra : (message as ChatMessage).extra;
         if (
           // @ts-ignore
@@ -122,7 +123,7 @@ ${JSON.stringify(extra?.[EXTENSION_KEY]?.[CHAT_MESSAGE_SCHEMA_VALUE_KEY] || '{}'
 \`\`\`
 `;
         const newMessages = [
-          ...messages.slice(0, foundIndex + 1),
+          ...copyMessages.slice(0, foundIndex + 1),
           {
             content,
             role: 'user',
@@ -131,13 +132,13 @@ ${JSON.stringify(extra?.[EXTENSION_KEY]?.[CHAT_MESSAGE_SCHEMA_VALUE_KEY] || '{}'
             mes: content,
             is_system: false,
           } as unknown as T,
-          ...messages.slice(foundIndex + 1),
+          ...copyMessages.slice(foundIndex + 1),
         ];
-        messages = newMessages;
+        copyMessages = newMessages;
       }
     }
   }
-  return messages;
+  return copyMessages;
 }
 
 async function initUI() {
