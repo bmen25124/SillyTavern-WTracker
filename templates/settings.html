@@ -26,6 +26,14 @@
                     </select>
                 </div>
                 <div class="setting-row">
+                    <label>Prompt Engineering</label>
+                    <select id="wtracker_prompt_engineering_mode" class="text_pole">
+                        <option value="native">Native API</option>
+                        <option value="json">Prompt Engineering (JSON)</option>
+                        <option value="xml">Prompt Engineering (XML)</option>
+                    </select>
+                </div>
+                <div class="setting-row">
                     <label>Schema Preset</label>
                     <select id="wtracker_schema_preset" class="text_pole" title="Manage Schemas"></select>
 
@@ -56,6 +64,34 @@
                     ></textarea>
                     <button
                         class="menu_button fa-solid fa-undo interactable prompt_restore_default"
+                        data-i18n="[title]Restore default"
+                        title="Restore default"
+                    ></button>
+                </div>
+                <div class="setting-row">
+                    <label>Prompt (JSON)</label>
+                    <textarea
+                        id="wtracker_prompt_json"
+                        class="text_pole textarea_compact"
+                        rows="4"
+                        placeholder="Enter your JSON prompt here..."
+                    ></textarea>
+                    <button
+                        class="menu_button fa-solid fa-undo interactable prompt_json_restore_default"
+                        data-i18n="[title]Restore default"
+                        title="Restore default"
+                    ></button>
+                </div>
+                <div class="setting-row">
+                    <label>Prompt (XML)</label>
+                    <textarea
+                        id="wtracker_prompt_xml"
+                        class="text_pole textarea_compact"
+                        rows="4"
+                        placeholder="Enter your XML prompt here..."
+                    ></textarea>
+                    <button
+                        class="menu_button fa-solid fa-undo interactable prompt_xml_restore_default"
                         data-i18n="[title]Restore default"
                         title="Restore default"
                     ></button>

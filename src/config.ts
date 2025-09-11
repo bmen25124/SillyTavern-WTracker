@@ -1,5 +1,11 @@
 import { AutoModeOptions } from 'sillytavern-utils-lib/types/translate';
 
+export enum PromptEngineeringMode {
+  NATIVE = 'native',
+  JSON = 'json',
+  XML = 'xml',
+}
+
 export interface Schema {
   name: string;
   value: object;
@@ -17,6 +23,9 @@ export interface ExtensionSettings {
   prompt: string;
   includeLastXMessages: number; // 0 means all messages
   includeLastXWTrackerMessages: number; // 0 means none
+  promptEngineeringMode: PromptEngineeringMode;
+  promptJson: string;
+  promptXml: string;
 }
 
 export const extensionName = 'SillyTavern-WTracker';
@@ -43,6 +52,44 @@ export const DEFAULT_PROMPT = `You are a Scene Tracker Assistant, tasked with pr
 1. **Recent Messages and Current Tracker**: Before updating, always consider the recent messages to ensure all changes are accurately represented.
 
 Your primary objective is to ensure clarity, consistency, providing complete details even when specifics are not explicitly stated.`;
+
+export const DEFAULT_PROMPT_JSON = `You are a highly specialized AI assistant. Your SOLE purpose is to generate a single, valid JSON object that strictly adheres to the provided JSON schema.
+
+**CRITICAL INSTRUCTIONS:**
+1.  You MUST wrap the entire JSON object in a markdown code block (\`\`\`json\\n...\\n\`\`\`).
+2.  Your response MUST NOT contain any explanatory text, comments, or any other content outside of this single code block.
+3.  The JSON object inside the code block MUST be valid and conform to the schema.
+
+**JSON SCHEMA TO FOLLOW:**
+\`\`\`json
+{{schema}}
+\`\`\`
+
+**EXAMPLE OF A PERFECT RESPONSE:**
+\`\`\`json
+{{example_response}}
+\`\`\`
+`;
+
+export const DEFAULT_PROMPT_XML = `You are a highly specialized AI assistant. Your SOLE purpose is to generate a single, valid XML structure that strictly adheres to the provided example.
+
+**CRITICAL INSTRUCTIONS:**
+1.  You MUST wrap the entire XML object in a markdown code block (\`\`\`xml\\n...\\n\`\`\`).
+2.  Your response MUST NOT contain any explanatory text, comments, or any other content outside of this single code block.
+3.  The XML object inside the code block MUST be valid.
+
+**JSON SCHEMA TO FOLLOW:**
+\`\`\`json
+{{schema}}
+\`\`\`
+
+**EXAMPLE OF A PERFECT RESPONSE:**
+\`\`\`xml
+<root>
+{{example_response}}
+</root>
+\`\`\`
+`;
 
 export const DEFAULT_SCHEMA_VALUE: object = {
   $schema: 'http://json-schema.org/draft-07/schema#',
@@ -84,6 +131,7 @@ export const DEFAULT_SCHEMA_VALUE: object = {
       type: 'array',
       items: {
         type: 'string',
+        description: 'Character name',
       },
       description: 'List of character names present in scene',
     },
@@ -201,3 +249,29 @@ export const DEFAULT_SCHEMA_HTML = `<div class="wtracker_default_mes_template">
     </details>
 </div>
 <hr>`;
+
+const VERSION = '0.1.0';
+const FORMAT_VERSION = 'F_1.0';
+export const EXTENSION_KEY = 'WTracker';
+
+export const defaultSettings: ExtensionSettings = {
+  version: VERSION,
+  formatVersion: FORMAT_VERSION,
+  profileId: '',
+  maxResponseToken: 16000,
+  autoMode: AutoModeOptions.NONE,
+  schemaPreset: 'default',
+  schemaPresets: {
+    default: {
+      name: 'Default',
+      value: DEFAULT_SCHEMA_VALUE,
+      html: DEFAULT_SCHEMA_HTML,
+    },
+  },
+  prompt: DEFAULT_PROMPT,
+  includeLastXMessages: 0,
+  includeLastXWTrackerMessages: 1,
+  promptEngineeringMode: PromptEngineeringMode.NATIVE,
+  promptJson: DEFAULT_PROMPT_JSON,
+  promptXml: DEFAULT_PROMPT_XML,
+};
