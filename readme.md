@@ -8,6 +8,8 @@ A [SillyTavern](https://docs.sillytavern.app/) extension that helps you track yo
 
 ---
 
+**You can edit the schema for active chat.**
+
 ![modify_for_this_chat](images/modify_for_this_chat.png)
 
 ---
