@@ -40,9 +40,9 @@ Your API/model might not support structured output. Change `Prompt Engineering` 
 
 > What is the difference compared to [famous tracker](https://github.com/kaldigo/SillyTavern-Tracker)?
 
-Most importantly, it works. This is minimalistic version of the original tracker.
-- No annoying connection profile switch.
-- No "Prompt Maker" option. Because json schema is easy enough to edit.
+Most importantly, it works. This is a minimalistic version of the original tracker.
+- No annoying connection profile switch. (This is the reason why I created this extension in the first place.)
+- No "Prompt Maker" option. Because JSON schema is easy enough to edit.
 - No "Generation Target" option. (Could be added in the future)
-- No "Generation Mode" option. Since this extension doesn't summarizing the chat, no need it. (I'm not planning to add summarize feature.)
-- There are some templates in original, I don't need them since I don't have those features.
+- No "Generation Mode" option. Since this extension doesn't summarize the chat, no need for it. (I'm not planning to add a summarize feature.)
+- There are some templates in the original, but I don't need them since I don't have those features.
