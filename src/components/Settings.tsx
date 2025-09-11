@@ -307,7 +307,7 @@ export const WTrackerSettings: FC = () => {
               />
             </div>
             <div className="setting-row">
-              <label>Include Last X Messages</label>
+              <label>Include Last X Messages (0 means all, 1 means last)</label>
               <input
                 type="number"
                 className="text_pole"
