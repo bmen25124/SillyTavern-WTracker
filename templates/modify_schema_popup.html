@@ -1,0 +1,8 @@
+<div style="display: flex; flex-direction: column; gap: 8px;">
+    <label for="wtracker-chat-schema-select">Select the schema preset for this chat:</label>
+    <select id="wtracker-chat-schema-select" class="text_pole">
+        {{#each presets}}
+        <option value="{{this.key}}" {{#if this.selected}}selected{{/if}}>{{this.name}}</option>
+        {{/each}}
+    </select>
+</div>

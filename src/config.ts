@@ -208,7 +208,7 @@ export const DEFAULT_SCHEMA_HTML = `<div class="wtracker_default_mes_template">
                     <td>Present:</td>
                     <td>
                         <!-- Joining an array of strings. Assumes a 'join' helper. -->
-                        {{#join ", " data.charactersPresent}}{{/join}}
+                        {{join data.charactersPresent ', '}}
                     </td>
                 </tr>
             </tbody>

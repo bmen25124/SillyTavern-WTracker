@@ -2,18 +2,18 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { settingsManager, WTrackerSettings } from './components/Settings.js';
 
-import { buildPrompt, ExtensionSettingsManager, Message } from 'sillytavern-utils-lib';
+import { buildPrompt, Message } from 'sillytavern-utils-lib';
 import { ChatMessage, EventNames, ExtractedData } from 'sillytavern-utils-lib/types';
 import { characters, name1, selected_group, st_echo } from 'sillytavern-utils-lib/config';
 import { AutoModeOptions } from 'sillytavern-utils-lib/types/translate';
-import { ExtensionSettings, PromptEngineeringMode, defaultSettings, EXTENSION_KEY } from './config.js';
+import { ExtensionSettings, PromptEngineeringMode, EXTENSION_KEY, extensionName } from './config.js';
 import { parseResponse } from './parser.js';
 import { schemaToExample } from './schema-to-example.js';
 import * as Handlebars from 'handlebars';
+import { POPUP_RESULT, POPUP_TYPE } from 'sillytavern-utils-lib/types/popup';
 
 // --- Constants and Globals ---
-const CHAT_METADATA_SCHEMA_VALUE_KEY = 'schemaValue';
-const CHAT_METADATA_SCHEMA_HTML_KEY = 'schemaHtml';
+const CHAT_METADATA_SCHEMA_PRESET_KEY = 'schemaKey';
 const CHAT_MESSAGE_SCHEMA_VALUE_KEY = 'value';
 const CHAT_MESSAGE_SCHEMA_HTML_KEY = 'html';
 
@@ -104,18 +104,16 @@ async function generateTracker(id: number) {
 
   const settings = settingsManager.getSettings();
   if (!settings.profileId) return st_echo('error', 'Please select a connection profile in settings.');
-
-  const { chatMetadata, extensionSettings, CONNECT_API_MAP, ConnectionManagerRequestService, saveChat } = globalContext;
-
+  const context = SillyTavern.getContext();
+  const chatMetadata = context.chatMetadata;
+  const { extensionSettings, CONNECT_API_MAP, ConnectionManagerRequestService, saveChat } = globalContext;
   // Ensure chat metadata is initialized
   chatMetadata[EXTENSION_KEY] = chatMetadata[EXTENSION_KEY] || {};
-  chatMetadata[EXTENSION_KEY][CHAT_METADATA_SCHEMA_VALUE_KEY] =
-    chatMetadata[EXTENSION_KEY][CHAT_METADATA_SCHEMA_VALUE_KEY] || settings.schemaPresets[settings.schemaPreset].value;
-  chatMetadata[EXTENSION_KEY][CHAT_METADATA_SCHEMA_HTML_KEY] =
-    chatMetadata[EXTENSION_KEY][CHAT_METADATA_SCHEMA_HTML_KEY] || settings.schemaPresets[settings.schemaPreset].html;
+  chatMetadata[EXTENSION_KEY][CHAT_METADATA_SCHEMA_PRESET_KEY] =
+    chatMetadata[EXTENSION_KEY][CHAT_METADATA_SCHEMA_PRESET_KEY] || settings.schemaPreset;
 
-  const chatJsonValue = chatMetadata[EXTENSION_KEY][CHAT_METADATA_SCHEMA_VALUE_KEY];
-  const chatHtmlValue = chatMetadata[EXTENSION_KEY][CHAT_METADATA_SCHEMA_HTML_KEY];
+  const chatJsonValue = settings.schemaPresets[settings.schemaPreset].value;
+  const chatHtmlValue = settings.schemaPresets[settings.schemaPreset].html;
 
   const profile = extensionSettings.connectionManager?.profiles?.find((p) => p.id === settings.profileId);
   const apiMap = profile?.api ? CONNECT_API_MAP[profile.api] : null;
@@ -152,7 +150,6 @@ async function generateTracker(id: number) {
           {},
           {
             json_schema: { name: 'SceneTracker', strict: true, value: chatJsonValue },
-            temperature: 0.8,
           },
         )) as ExtractedData
       ).content;
@@ -160,7 +157,7 @@ async function generateTracker(id: number) {
       const format = settings.promptEngineeringMode as 'json' | 'xml';
       const promptTemplate = format === 'json' ? settings.promptJson : settings.promptXml;
       const exampleResponse = schemaToExample(chatJsonValue, format);
-      const finalPrompt = Handlebars.compile(promptTemplate)({
+      const finalPrompt = Handlebars.compile(promptTemplate, { noEscape: true })({
         schema: JSON.stringify(chatJsonValue, null, 2),
         example_response: exampleResponse,
       });
@@ -169,8 +166,6 @@ async function generateTracker(id: number) {
         settings.profileId,
         messages,
         settings.maxResponseToken,
-        {},
-        { temperature: 0.8 },
       )) as ExtractedData;
       if (!rest.content) throw new Error('No response content received.');
       // @ts-ignore
@@ -214,21 +209,19 @@ async function initializeGlobalUI() {
     }
   });
 
-  // Add buttons to the main extensions menu for schema/HTML modification
   const extensionsMenu = document.querySelector('#extensionsMenu');
-  const buttonHtml = await globalContext.renderExtensionTemplateAsync(
-    'third-party/SillyTavern-WTracker',
-    'templates/buttons',
-  );
   const buttonContainer = document.createElement('div');
   buttonContainer.id = 'wtracker_menu_buttons';
-  buttonContainer.innerHTML = buttonHtml;
+  buttonContainer.className = 'extension_container';
   extensionsMenu?.appendChild(buttonContainer);
-
-  buttonContainer
-    .querySelector('#wtracker_modify_schema')
-    ?.addEventListener('click', () => modifyChatMetadata('schema'));
-  buttonContainer.querySelector('#wtracker_modify_html')?.addEventListener('click', () => modifyChatMetadata('html'));
+  const buttonHtml = await globalContext.renderExtensionTemplateAsync(
+    `third-party/${extensionName}`,
+    'templates/buttons',
+  );
+  buttonContainer.insertAdjacentHTML('beforeend', buttonHtml);
+  extensionsMenu?.querySelector('#wtracker_modify_schema_preset')?.addEventListener('click', async () => {
+    await modifyChatMetadata();
+  });
 
   // Set up event listeners for auto-mode and chat changes
   const settings = settingsManager.getSettings();
@@ -250,39 +243,51 @@ async function initializeGlobalUI() {
   };
 }
 
-// Helper for schema/HTML modification popups
-async function modifyChatMetadata(type: 'schema' | 'html') {
-  const { chatMetadata, saveMetadataDebounced, Popup } = globalContext;
-  if (!chatMetadata) return;
-
-  chatMetadata[EXTENSION_KEY] = chatMetadata[EXTENSION_KEY] || {};
-
-  const isSchema = type === 'schema';
-  const key = isSchema ? CHAT_METADATA_SCHEMA_VALUE_KEY : CHAT_METADATA_SCHEMA_HTML_KEY;
-  const title = isSchema ? 'Modify WTracker Schema' : 'Modify WTracker Schema HTML';
+async function modifyChatMetadata() {
   const settings = settingsManager.getSettings();
-  const defaultValue = settings.schemaPresets[settings.schemaPreset][isSchema ? 'value' : 'html'];
-
-  let currentValue = chatMetadata[EXTENSION_KEY][key] || defaultValue;
-  if (isSchema && typeof currentValue !== 'string') {
-    currentValue = JSON.stringify(currentValue, null, 2);
+  const context = SillyTavern.getContext();
+  const chatMetadata = context.chatMetadata;
+  if (!chatMetadata[EXTENSION_KEY]) {
+    chatMetadata[EXTENSION_KEY] = {};
   }
+  if (!chatMetadata[EXTENSION_KEY][CHAT_METADATA_SCHEMA_PRESET_KEY]) {
+    chatMetadata[EXTENSION_KEY][CHAT_METADATA_SCHEMA_PRESET_KEY] = 'default';
+    context.saveMetadataDebounced();
+  }
+  const currentPresetKey = chatMetadata[EXTENSION_KEY][CHAT_METADATA_SCHEMA_PRESET_KEY];
 
-  const popupResult = await Popup.show.input(title, '', currentValue, { wider: true, large: true, rows: 16 });
+  // Prepare data for the Handlebars template
+  const templateData = {
+    presets: Object.entries(settings.schemaPresets).map(([key, preset]) => ({
+      key: key,
+      name: preset.name,
+      selected: key === currentPresetKey,
+    })),
+  };
 
-  if (popupResult) {
-    let newValue: any = popupResult;
-    if (isSchema) {
-      try {
-        newValue = JSON.parse(popupResult);
-      } catch (err) {
-        return st_echo('error', 'Invalid JSON format. Please check your input.');
+  // Render the popup content from the template file
+  const popupContent = await globalContext.renderExtensionTemplateAsync(
+    'third-party/SillyTavern-WTracker',
+    'templates/modify_schema_popup',
+    templateData,
+  );
+
+  await globalContext.callGenericPopup(popupContent, POPUP_TYPE.CONFIRM, '', {
+    okButton: 'Save',
+    onClose(popup) {
+      if (popup.result === POPUP_RESULT.AFFIRMATIVE) {
+        const selectElement = document.getElementById('wtracker-chat-schema-select') as HTMLSelectElement;
+        if (selectElement) {
+          const newPresetKey = selectElement.value;
+          if (newPresetKey !== currentPresetKey) {
+            chatMetadata[EXTENSION_KEY][CHAT_METADATA_SCHEMA_PRESET_KEY] = newPresetKey;
+            context.saveMetadataDebounced();
+            st_echo('success', `Chat schema preset updated to "${settings.schemaPresets[newPresetKey].name}".`);
+          }
+        }
       }
-    }
-    chatMetadata[EXTENSION_KEY][key] = newValue;
-    saveMetadataDebounced();
-    st_echo('success', `${isSchema ? 'Schema' : 'HTML'} updated successfully.`);
-  }
+    },
+  });
 }
 
 // --- Main Application Entry ---
