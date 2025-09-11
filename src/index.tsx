@@ -2,7 +2,7 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { settingsManager, WTrackerSettings } from './components/Settings.js';
 
-import { buildPrompt, Message } from 'sillytavern-utils-lib';
+import { buildPrompt, Message, Generator } from 'sillytavern-utils-lib';
 import { ChatMessage, EventNames, ExtractedData } from 'sillytavern-utils-lib/types';
 import { characters, name1, selected_group, st_echo } from 'sillytavern-utils-lib/config';
 import { AutoModeOptions } from 'sillytavern-utils-lib/types/translate';
@@ -18,7 +18,8 @@ const CHAT_MESSAGE_SCHEMA_VALUE_KEY = 'value';
 const CHAT_MESSAGE_SCHEMA_HTML_KEY = 'html';
 
 const globalContext = SillyTavern.getContext();
-const pendingRequests = new Set<number>();
+const generator = new Generator();
+const pendingRequests = new Map<number, string>();
 const incomingTypes = [AutoModeOptions.RESPONSES, AutoModeOptions.BOTH];
 const outgoingTypes = [AutoModeOptions.INPUT, AutoModeOptions.BOTH];
 
@@ -100,13 +101,19 @@ function includeWTrackerMessages<T extends Message | ChatMessage>(messages: T[],
 async function generateTracker(id: number) {
   const message = globalContext.chat[id];
   if (!message) return st_echo('error', `Message with ID ${id} not found.`);
-  if (pendingRequests.has(id)) return st_echo('warning', 'A request is already in progress.');
+
+  if (pendingRequests.has(id)) {
+    const requestId = pendingRequests.get(id)!;
+    generator.abortRequest(requestId);
+    st_echo('info', 'Tracker generation cancelled.');
+    return;
+  }
 
   const settings = settingsManager.getSettings();
   if (!settings.profileId) return st_echo('error', 'Please select a connection profile in settings.');
   const context = SillyTavern.getContext();
   const chatMetadata = context.chatMetadata;
-  const { extensionSettings, CONNECT_API_MAP, ConnectionManagerRequestService, saveChat } = globalContext;
+  const { extensionSettings, CONNECT_API_MAP, saveChat } = globalContext;
   // Ensure chat metadata is initialized
   chatMetadata[EXTENSION_KEY] = chatMetadata[EXTENSION_KEY] || {};
   chatMetadata[EXTENSION_KEY][CHAT_METADATA_SCHEMA_PRESET_KEY] =
@@ -122,7 +129,6 @@ async function generateTracker(id: number) {
 
   const currentButton = document.querySelector(`.mes[mesid="${id}"] .mes_wtracker_button`);
   try {
-    pendingRequests.add(id);
     currentButton?.classList.add('spinning');
 
     const promptResult = await buildPrompt(apiMap?.selected!, {
@@ -140,19 +146,44 @@ async function generateTracker(id: number) {
     let messages = includeWTrackerMessages(promptResult.result, settings);
     let response: ExtractedData['content'];
 
+    const makeRequest = (requestMessages: Message[], customParams?: any): Promise<ExtractedData | undefined> => {
+      return new Promise((resolve, reject) => {
+        const abortController = new AbortController();
+        generator.generateRequest(
+          {
+            profileId: settings.profileId,
+            prompt: requestMessages,
+            maxTokens: settings.maxResponseToken,
+            custom: { ...customParams, signal: abortController.signal },
+          },
+          {
+            abortController,
+            onStart: (requestId) => {
+              pendingRequests.set(id, requestId);
+            },
+            onFinish: (data, error) => {
+              pendingRequests.delete(id);
+              if (error) {
+                return reject(error);
+              }
+              if (!data) {
+                // This is how Generator signals cancellation without an error object
+                return reject(new DOMException('Request aborted by user', 'AbortError'));
+              }
+              resolve(data as ExtractedData | undefined);
+            },
+          },
+        );
+      });
+    };
+
     if (settings.promptEngineeringMode === PromptEngineeringMode.NATIVE) {
       messages.push({ content: settings.prompt, role: 'user' });
-      response = (
-        (await ConnectionManagerRequestService.sendRequest(
-          settings.profileId,
-          messages,
-          settings.maxResponseToken,
-          {},
-          {
-            json_schema: { name: 'SceneTracker', strict: true, value: chatJsonValue },
-          },
-        )) as ExtractedData
-      ).content;
+      const result = await makeRequest(messages, {
+        json_schema: { name: 'SceneTracker', strict: true, value: chatJsonValue },
+      });
+      // @ts-ignore
+      response = result?.content;
     } else {
       const format = settings.promptEngineeringMode as 'json' | 'xml';
       const promptTemplate = format === 'json' ? settings.promptJson : settings.promptXml;
@@ -162,12 +193,8 @@ async function generateTracker(id: number) {
         example_response: exampleResponse,
       });
       messages.push({ content: finalPrompt, role: 'user' });
-      const rest = (await ConnectionManagerRequestService.sendRequest(
-        settings.profileId,
-        messages,
-        settings.maxResponseToken,
-      )) as ExtractedData;
-      if (!rest.content) throw new Error('No response content received.');
+      const rest = await makeRequest(messages);
+      if (!rest?.content) throw new Error('No response content received.');
       // @ts-ignore
       response = parseResponse(rest.content, format, { schema: chatJsonValue });
     }
@@ -181,11 +208,12 @@ async function generateTracker(id: number) {
 
     await saveChat();
     renderTracker(id);
-  } catch (error) {
-    console.error('Error generating tracker:', error);
-    st_echo('error', `Tracker generation failed: ${(error as Error).message}`);
+  } catch (error: any) {
+    if (error.name !== 'AbortError') {
+      console.error('Error generating tracker:', error);
+      st_echo('error', `Tracker generation failed: ${(error as Error).message}`);
+    }
   } finally {
-    pendingRequests.delete(id);
     currentButton?.classList.remove('spinning');
   }
 }
