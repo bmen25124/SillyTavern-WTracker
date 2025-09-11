@@ -28,7 +28,9 @@ export const settingsManager = new ExtensionSettingsManager<ExtensionSettings>(E
 export const WTrackerSettings: FC = () => {
   const forceUpdate = useForceUpdate();
   const settings = settingsManager.getSettings();
-  const [schemaText, setSchemaText] = useState('');
+  const [schemaText, setSchemaText] = useState(
+    JSON.stringify(settings.schemaPresets[settings.schemaPreset]?.value, null, 2) ?? '',
+  );
 
   const updateAndRefresh = useCallback(
     (updater: (currentSettings: ExtensionSettings) => void) => {
