@@ -48,7 +48,7 @@ function renderTracker(messageId: number) {
   messageBlock.querySelector('.mes_wtracker')?.remove();
 
   try {
-    const template = Handlebars.compile(trackerHtmlSchema, { noEscape: true });
+    const template = Handlebars.compile(trackerHtmlSchema, { noEscape: true, strict: true });
     const renderedHtml = template({ data: trackerData });
     const container = document.createElement('div');
     container.className = 'mes_wtracker';
@@ -157,7 +157,7 @@ async function generateTracker(id: number) {
       const format = settings.promptEngineeringMode as 'json' | 'xml';
       const promptTemplate = format === 'json' ? settings.promptJson : settings.promptXml;
       const exampleResponse = schemaToExample(chatJsonValue, format);
-      const finalPrompt = Handlebars.compile(promptTemplate, { noEscape: true })({
+      const finalPrompt = Handlebars.compile(promptTemplate, { noEscape: true, strict: true })({
         schema: JSON.stringify(chatJsonValue, null, 2),
         example_response: exampleResponse,
       });
