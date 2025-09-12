@@ -37,28 +37,23 @@ if (!Handlebars.helpers['join']) {
 
 function renderTracker(messageId: number) {
   const message = globalContext.chat[messageId];
+  const messageBlock = document.querySelector(`.mes[mesid="${messageId}"]`);
+  messageBlock?.querySelector('.mes_wtracker')?.remove();
+
   if (!message?.extra?.[EXTENSION_KEY]) return;
 
   const trackerData = message.extra[EXTENSION_KEY][CHAT_MESSAGE_SCHEMA_VALUE_KEY];
   const trackerHtmlSchema = message.extra[EXTENSION_KEY][CHAT_MESSAGE_SCHEMA_HTML_KEY];
   if (!trackerData || !trackerHtmlSchema) return;
 
-  const messageBlock = document.querySelector(`.mes[mesid="${messageId}"]`);
   if (!messageBlock) return;
 
-  messageBlock.querySelector('.mes_wtracker')?.remove();
-
-  try {
-    const template = Handlebars.compile(trackerHtmlSchema, { noEscape: true, strict: true });
-    const renderedHtml = template({ data: trackerData });
-    const container = document.createElement('div');
-    container.className = 'mes_wtracker';
-    container.innerHTML = renderedHtml;
-    messageBlock.querySelector('.mes_text')?.before(container);
-  } catch (error) {
-    console.error('Error rendering WTracker template:', error);
-    st_echo('error', 'Failed to render WTracker HTML. Check template syntax.');
-  }
+  const template = Handlebars.compile(trackerHtmlSchema, { noEscape: true, strict: true });
+  const renderedHtml = template({ data: trackerData });
+  const container = document.createElement('div');
+  container.className = 'mes_wtracker';
+  container.innerHTML = renderedHtml;
+  messageBlock.querySelector('.mes_text')?.before(container);
 }
 
 function includeWTrackerMessages<T extends Message | ChatMessage>(messages: T[], settings: ExtensionSettings): T[] {
@@ -204,13 +199,24 @@ async function generateTracker(id: number) {
 
     if (!response || Object.keys(response as any).length === 0) throw new Error('Empty response from WTracker.');
 
+    // Tentatively update message and try to render
     message.extra = message.extra || {};
     message.extra[EXTENSION_KEY] = message.extra[EXTENSION_KEY] || {};
     message.extra[EXTENSION_KEY][CHAT_MESSAGE_SCHEMA_VALUE_KEY] = response;
     message.extra[EXTENSION_KEY][CHAT_MESSAGE_SCHEMA_HTML_KEY] = chatHtmlValue;
 
-    await saveChat();
-    renderTracker(id);
+    try {
+      renderTracker(id);
+      // If render succeeds, save the chat
+      await saveChat();
+    } catch (renderError) {
+      // If render fails, remove the tracker data we just added
+      delete message.extra[EXTENSION_KEY];
+      // Re-render to clear the failed attempt from the DOM
+      renderTracker(id);
+      // Let the outer catch block show the error to the user
+      throw new Error(`Generated data failed to render with the current template. Not saved.`);
+    }
   } catch (error: any) {
     if (error.name !== 'AbortError') {
       console.error('Error generating tracker:', error);
@@ -264,7 +270,25 @@ async function initializeGlobalUI() {
     EventNames.USER_MESSAGE_RENDERED,
     (messageId: number) => outgoingTypes.includes(settings.autoMode) && generateTracker(messageId),
   );
-  globalContext.eventSource.on(EventNames.CHAT_CHANGED, () => globalContext.chat.forEach((_, i) => renderTracker(i)));
+  globalContext.eventSource.on(EventNames.CHAT_CHANGED, () => {
+    const { saveChat } = globalContext;
+    let chatModified = false;
+    globalContext.chat.forEach((message, i) => {
+      try {
+        renderTracker(i);
+      } catch (error) {
+        console.error(`Error rendering WTracker on message ${i}, removing data:`, error);
+        st_echo('error', 'A WTracker template failed to render. Removing tracker from the message.');
+        if (message?.extra?.[EXTENSION_KEY]) {
+          delete message.extra[EXTENSION_KEY];
+          chatModified = true;
+        }
+      }
+    });
+    if (chatModified) {
+      saveChat();
+    }
+  });
 
   // Register the global generation interceptor
   (globalThis as any).wtrackerGenerateInterceptor = (chat: ChatMessage[]) => {
