@@ -40,7 +40,7 @@
     "dependencies": {
         "fast-xml-parser": "^5.2.5",
         "handlebars": "^4.7.8",
-        "sillytavern-utils-lib": "^1.0.56"
+        "sillytavern-utils-lib": "^1.0.57"
     },
     "peerDependencies": {
         "react": "^19.1.1",

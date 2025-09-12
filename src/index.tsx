@@ -146,7 +146,7 @@ async function generateTracker(id: number) {
     let messages = includeWTrackerMessages(promptResult.result, settings);
     let response: ExtractedData['content'];
 
-    const makeRequest = (requestMessages: Message[], customParams?: any): Promise<ExtractedData | undefined> => {
+    const makeRequest = (requestMessages: Message[], overideParams?: any): Promise<ExtractedData | undefined> => {
       return new Promise((resolve, reject) => {
         const abortController = new AbortController();
         generator.generateRequest(
@@ -154,7 +154,10 @@ async function generateTracker(id: number) {
             profileId: settings.profileId,
             prompt: requestMessages,
             maxTokens: settings.maxResponseToken,
-            custom: { ...customParams, signal: abortController.signal },
+            custom: { signal: abortController.signal },
+            overridePayload: {
+              ...overideParams,
+            },
           },
           {
             abortController,
