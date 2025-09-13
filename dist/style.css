@@ -15,10 +15,35 @@
   align-self: flex-start;
 }
 
-.mes_wtracker_button.spinning {
+.mes_wtracker_button.spinning,
+.wtracker-regenerate-button.spinning {
   animation: spin 2s linear infinite;
 }
 
+.mes_wtracker {
+  position: relative;
+}
+.mes_wtracker .wtracker-controls {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  gap: 12px;
+  z-index: 1;
+}
+.mes_wtracker .wtracker-controls .wtracker-regenerate-button,
+.mes_wtracker .wtracker-controls .wtracker-edit-button,
+.mes_wtracker .wtracker-controls .wtracker-delete-button {
+  cursor: pointer;
+  color: var(--text_color);
+  opacity: 0.3;
+  transition: opacity 0.2s ease-in-out;
+}
+.mes_wtracker .wtracker-controls .wtracker-regenerate-button:hover,
+.mes_wtracker .wtracker-controls .wtracker-edit-button:hover,
+.mes_wtracker .wtracker-controls .wtracker-delete-button:hover {
+  opacity: 1;
+}
 .mes_wtracker .wtracker_default_mes_template {
   font-size: smaller;
 }

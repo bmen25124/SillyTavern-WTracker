@@ -53,6 +53,17 @@ function renderTracker(messageId: number) {
   const container = document.createElement('div');
   container.className = 'mes_wtracker';
   container.innerHTML = renderedHtml;
+
+  // Add controls
+  const controls = document.createElement('div');
+  controls.className = 'wtracker-controls';
+  controls.innerHTML = `
+    <div class="wtracker-regenerate-button fa-solid fa-arrows-rotate" title="Regenerate Tracker"></div>
+    <div class="wtracker-edit-button fa-solid fa-code" title="Edit Tracker Data"></div>
+    <div class="wtracker-delete-button fa-solid fa-trash-can" title="Delete Tracker"></div>
+  `;
+  container.prepend(controls);
+
   messageBlock.querySelector('.mes_text')?.before(container);
 }
 
@@ -93,6 +104,63 @@ function includeWTrackerMessages<T extends Message | ChatMessage>(messages: T[],
   return copyMessages;
 }
 
+async function deleteTracker(messageId: number) {
+  const message = globalContext.chat[messageId];
+  if (!message?.extra?.[EXTENSION_KEY]) return;
+
+  const confirm = await globalContext.Popup.show.confirm(
+    'Delete Tracker',
+    'Are you sure you want to delete the tracker data for this message? This cannot be undone.',
+  );
+
+  if (confirm) {
+    delete message.extra[EXTENSION_KEY];
+    await globalContext.saveChat();
+    renderTracker(messageId); // This will remove the rendered tracker
+    st_echo('success', 'Tracker data deleted.');
+  }
+}
+
+async function editTracker(messageId: number) {
+  const message = globalContext.chat[messageId];
+  if (!message?.extra?.[EXTENSION_KEY]?.[CHAT_MESSAGE_SCHEMA_VALUE_KEY]) return;
+
+  const currentData = message.extra[EXTENSION_KEY][CHAT_MESSAGE_SCHEMA_VALUE_KEY];
+
+  const popupContent = `
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+            <label for="wtracker-edit-textarea">Edit Tracker JSON:</label>
+            <textarea id="wtracker-edit-textarea" class="text_pole" rows="15" style="width: 100%; resize: vertical;"></textarea>
+        </div>
+    `;
+
+  globalContext.callGenericPopup(popupContent, POPUP_TYPE.CONFIRM, 'Edit Tracker', {
+    okButton: 'Save',
+    onClose: async (popup) => {
+      if (popup.result === POPUP_RESULT.AFFIRMATIVE) {
+        const textarea = popup.content.querySelector('#wtracker-edit-textarea') as HTMLTextAreaElement;
+        if (textarea) {
+          try {
+            const newData = JSON.parse(textarea.value);
+            // @ts-ignore
+            message.extra[EXTENSION_KEY][CHAT_MESSAGE_SCHEMA_VALUE_KEY] = newData;
+            await globalContext.saveChat();
+            renderTracker(messageId);
+            st_echo('success', 'Tracker data updated.');
+          } catch (e) {
+            console.error('Error parsing new tracker data:', e);
+            st_echo('error', 'Invalid JSON. Changes were not saved.');
+          }
+        }
+      }
+    },
+  });
+  const textarea = document.querySelector('#wtracker-edit-textarea') as HTMLTextAreaElement;
+  if (textarea) {
+    textarea.value = JSON.stringify(currentData, null, 2);
+  }
+}
+
 async function generateTracker(id: number) {
   const message = globalContext.chat[id];
   if (!message) return st_echo('error', `Message with ID ${id} not found.`);
@@ -122,9 +190,12 @@ async function generateTracker(id: number) {
   let characterId = characters.findIndex((char: any) => char.avatar === message.original_avatar);
   characterId = characterId !== -1 ? characterId : undefined;
 
-  const currentButton = document.querySelector(`.mes[mesid="${id}"] .mes_wtracker_button`);
+  const messageBlock = document.querySelector(`.mes[mesid="${id}"]`);
+  const mainButton = messageBlock?.querySelector('.mes_wtracker_button');
+  const regenerateButton = messageBlock?.querySelector('.wtracker-regenerate-button');
   try {
-    currentButton?.classList.add('spinning');
+    mainButton?.classList.add('spinning');
+    regenerateButton?.classList.add('spinning');
 
     const promptResult = await buildPrompt(apiMap?.selected!, {
       targetCharacterId: characterId,
@@ -223,7 +294,8 @@ async function generateTracker(id: number) {
       st_echo('error', `Tracker generation failed: ${(error as Error).message}`);
     }
   } finally {
-    currentButton?.classList.remove('spinning');
+    mainButton?.classList.remove('spinning');
+    regenerateButton?.classList.remove('spinning');
   }
 }
 
@@ -237,12 +309,23 @@ async function initializeGlobalUI() {
   wTrackerIcon.tabIndex = 0;
   document.querySelector('#message_template .mes_buttons .extraMesButtons')?.prepend(wTrackerIcon);
 
-  // Add global click listener for the tracker button on messages
+  // Add global click listener for various tracker-related buttons on messages
   document.addEventListener('click', (event) => {
     const target = event.target as HTMLElement;
+    const messageEl = target.closest('.mes');
+
+    if (!messageEl) return;
+    const messageId = Number(messageEl.getAttribute('mesid'));
+    if (isNaN(messageId)) return;
+
     if (target.classList.contains('mes_wtracker_button')) {
-      const messageId = Number(target.closest('.mes')?.getAttribute('mesid'));
-      if (!isNaN(messageId)) generateTracker(messageId);
+      generateTracker(messageId);
+    } else if (target.classList.contains('wtracker-edit-button')) {
+      editTracker(messageId);
+    } else if (target.classList.contains('wtracker-regenerate-button')) {
+      generateTracker(messageId);
+    } else if (target.classList.contains('wtracker-delete-button')) {
+      deleteTracker(messageId);
     }
   });
 
