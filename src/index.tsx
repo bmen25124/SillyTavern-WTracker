@@ -145,7 +145,26 @@ async function editTracker(messageId: number) {
             // @ts-ignore
             message.extra[EXTENSION_KEY][CHAT_MESSAGE_SCHEMA_VALUE_KEY] = newData;
             await globalContext.saveChat();
+            let detailsState: boolean[] = [];
+            const messageBlock = document.querySelector(`.mes[mesid="${messageId}"]`);
+            const existingTracker = messageBlock?.querySelector('.mes_wtracker');
+            if (existingTracker) {
+              const detailsElements = existingTracker.querySelectorAll('details');
+              detailsState = Array.from(detailsElements).map((detail) => detail.open);
+            }
             renderTracker(messageId);
+            if (detailsState.length > 0) {
+              const newTracker = messageBlock?.querySelector('.mes_wtracker');
+              if (newTracker) {
+                const newDetailsElements = newTracker.querySelectorAll('details');
+                newDetailsElements.forEach((detail, index) => {
+                  // Safety check: only apply if a state for this index exists
+                  if (detailsState[index] !== undefined) {
+                    detail.open = detailsState[index];
+                  }
+                });
+              }
+            }
             st_echo('success', 'Tracker data updated.');
           } catch (e) {
             console.error('Error parsing new tracker data:', e);
