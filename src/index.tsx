@@ -193,6 +193,13 @@ async function generateTracker(id: number) {
   const messageBlock = document.querySelector(`.mes[mesid="${id}"]`);
   const mainButton = messageBlock?.querySelector('.mes_wtracker_button');
   const regenerateButton = messageBlock?.querySelector('.wtracker-regenerate-button');
+
+  let detailsState: boolean[] = [];
+  const existingTracker = messageBlock?.querySelector('.mes_wtracker');
+  if (existingTracker) {
+    const detailsElements = existingTracker.querySelectorAll('details');
+    detailsState = Array.from(detailsElements).map((detail) => detail.open);
+  }
   try {
     mainButton?.classList.add('spinning');
     regenerateButton?.classList.add('spinning');
@@ -278,6 +285,20 @@ async function generateTracker(id: number) {
 
     try {
       renderTracker(id);
+
+      if (detailsState.length > 0) {
+        const newTracker = messageBlock?.querySelector('.mes_wtracker');
+        if (newTracker) {
+          const newDetailsElements = newTracker.querySelectorAll('details');
+          newDetailsElements.forEach((detail, index) => {
+            // Safety check: only apply if a state for this index exists
+            if (detailsState[index] !== undefined) {
+              detail.open = detailsState[index];
+            }
+          });
+        }
+      }
+
       // If render succeeds, save the chat
       await saveChat();
     } catch (renderError) {
