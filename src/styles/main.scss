@@ -1,80 +1,90 @@
 .wtracker-settings {
-    .wtracker-container {
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-    }
-
-    .setting-row {
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-
-        &:last-child {
-            margin-top: 10px;
-        }
-
-        button {
-            align-self: flex-start;
-        }
-    }
-}
-
-.mes_wtracker_button.spinning,
-.wtracker-regenerate-button.spinning {
-  animation: spin 2s linear infinite;
-}
-
-.mes_wtracker {
-	position: relative;
-
-	.wtracker-controls {
-		position: absolute;
-		top: 8px;
-		right: 8px;
+	.wtracker-container {
 		display: flex;
+		flex-direction: column;
 		gap: 12px;
-		z-index: 1;
+	}
 
-		.wtracker-regenerate-button,
-		.wtracker-edit-button,
-		.wtracker-delete-button {
-			cursor: pointer;
-			color: var(--text_color);
-			opacity: 0.3;
-			transition: opacity 0.2s ease-in-out;
+	.setting-row {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
 
-			&:hover {
-				opacity: 1;
+		&:last-child {
+			margin-top: 10px;
+		}
+
+		button {
+			align-self: flex-start;
+		}
+	}
+}
+
+#wtracker-start-button.spinning,
+.mes_wtracker_button.spinning {
+	animation: spin 2s linear infinite;
+}
+
+.wtracker-container {
+	padding-bottom: 10px;
+}
+
+.wtracker-choices {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	margin-top: 10px;
+
+	.wtracker-choice-button {
+		padding: 8px 12px;
+		background-color: var(--background_higher);
+		border: 1px solid var(--border_color);
+		border-radius: 5px;
+		cursor: pointer;
+		transition: background-color 0.2s ease-in-out;
+		text-align: left;
+		color: var(--text_color);
+
+		&:hover {
+			background-color: var(--background_highest);
+		}
+	}
+}
+
+.wtracker_default_mes_template {
+	h4 {
+		margin-top: 0;
+		margin-bottom: 8px;
+	}
+
+	font-size: smaller;
+
+	tr {
+		td {
+			vertical-align: top;
+
+			&:first-child {
+				text-align: right;
+				font-weight: bold;
+				width: 60px;
 			}
 		}
 	}
 
-	.wtracker_default_mes_template {
-		font-size: smaller;
-		tr {
-			td {
-				vertical-align: top;
-				&:first-child {
-					text-align: right;
-					font-weight: bold;
-					width: 60px;
-				}
+	details {
+		summary {
+			font-weight: bold;
+
+			span {
+				left: -3.25px;
+				position: relative;
+				display: inline-block;
 			}
 		}
-		details {
-			summary {
-				font-weight: bold;
-				span {
-					left: -3.25px;
-					position: relative;
-					display: inline-block;
-				}
-			}
-			table,
-			.mes_wtracker_characters {
-				padding-left: 20px;
-			}
+
+		table,
+		.mes_wtracker_characters {
+			padding-left: 20px;
 		}
 	}
 }

@@ -5,6 +5,7 @@ import {
   STButton,
   STTextarea,
   PresetItem,
+  STInput,
 } from 'sillytavern-utils-lib/components';
 import { ExtensionSettingsManager } from 'sillytavern-utils-lib';
 import {
@@ -19,10 +20,8 @@ import {
   defaultSettings,
   EXTENSION_KEY,
 } from '../config.js';
-import { AutoModeOptions } from 'sillytavern-utils-lib/types/translate';
 import { useForceUpdate } from '../hooks/useForceUpdate.js';
 
-// Initialize the settings manager once, outside the component
 export const settingsManager = new ExtensionSettingsManager<ExtensionSettings>(EXTENSION_KEY, defaultSettings);
 
 export const WTrackerSettings: FC = () => {
@@ -42,7 +41,6 @@ export const WTrackerSettings: FC = () => {
     [forceUpdate],
   );
 
-  // Memoized data for the schema preset dropdown
   const schemaPresetItems = useMemo((): PresetItem[] => {
     return Object.entries(settings.schemaPresets).map(([value, preset]) => ({
       value,
@@ -50,86 +48,62 @@ export const WTrackerSettings: FC = () => {
     }));
   }, [settings.schemaPresets]);
 
-  // Handler for when a new schema preset is selected
   const handleSchemaPresetChange = (newValue?: string) => {
     const newPresetKey = newValue ?? 'default';
     const newPreset = settings.schemaPresets[newPresetKey];
     if (newPreset) {
-      updateAndRefresh((settings) => {
-        settings.schemaPreset = newPresetKey;
+      updateAndRefresh((s) => {
+        s.schemaPreset = newPresetKey;
       });
       setSchemaText(JSON.stringify(newPreset.value, null, 2));
     }
   };
 
-  // Handler for when the list of presets is modified (created, renamed, deleted)
   const handleSchemaPresetsListChange = (newItems: PresetItem[]) => {
     updateAndRefresh((s) => {
       const newPresets: Record<string, Schema> = {};
       newItems.forEach((item) => {
         newPresets[item.value] =
           s.schemaPresets[item.value] ?? structuredClone(s.schemaPresets[s.schemaPreset] ?? s.schemaPresets['default']);
-        // Ensure name is updated on rename
         newPresets[item.value].name = item.label;
       });
       s.schemaPresets = newPresets;
     });
   };
 
-  // Handler for the schema JSON textarea
   const handleSchemaValueChange = (newSchemaText: string) => {
-    setSchemaText(newSchemaText); // Update UI immediately
+    setSchemaText(newSchemaText);
     try {
       const parsedJson = JSON.parse(newSchemaText);
       updateAndRefresh((s) => {
         const preset = s.schemaPresets[s.schemaPreset];
         if (preset) {
-          // Create a new presets object with the updated value
-          s.schemaPresets = {
-            ...s.schemaPresets,
-            [s.schemaPreset]: { ...preset, value: parsedJson },
-          };
+          s.schemaPresets = { ...s.schemaPresets, [s.schemaPreset]: { ...preset, value: parsedJson } };
         }
       });
-    } catch (e) {
-      // Invalid JSON, do nothing until it's valid. A visual error could be added.
-    }
+    } catch (e) {}
   };
 
-  // Handler for the schema HTML textarea
   const handleSchemaHtmlChange = (newHtml: string) => {
     updateAndRefresh((s) => {
       const preset = s.schemaPresets[s.schemaPreset];
       if (preset) {
-        // Create a new presets object with the updated html
-        s.schemaPresets = {
-          ...s.schemaPresets,
-          [s.schemaPreset]: { ...preset, html: newHtml },
-        };
+        s.schemaPresets = { ...s.schemaPresets, [s.schemaPreset]: { ...preset, html: newHtml } };
       }
     });
   };
 
-  // Restore the current schema preset to its default values
   const restoreSchemaToDefault = async () => {
     const confirm = await SillyTavern.getContext().Popup.show.confirm(
       'Restore Default',
-      'Are you sure you want to restore the default schema and HTML for this preset?',
+      'Restore default World State?',
     );
     if (!confirm) return;
-
     const currentPresetKey = settings.schemaPreset;
     updateAndRefresh((s) => {
       const preset = s.schemaPresets[currentPresetKey];
       if (preset) {
-        s.schemaPresets = {
-          ...s.schemaPresets,
-          [currentPresetKey]: {
-            ...preset,
-            value: DEFAULT_SCHEMA_VALUE,
-            html: DEFAULT_SCHEMA_HTML,
-          },
-        };
+        s.schemaPresets[currentPresetKey] = { ...preset, value: DEFAULT_SCHEMA_VALUE, html: DEFAULT_SCHEMA_HTML };
       }
     });
     setSchemaText(JSON.stringify(DEFAULT_SCHEMA_VALUE, null, 2));
@@ -148,30 +122,46 @@ export const WTrackerSettings: FC = () => {
               <label>Connection Profile</label>
               <STConnectionProfileSelect
                 initialSelectedProfileId={settings.profileId}
-                onChange={(profile) =>
-                  updateAndRefresh((s) => {
-                    s.profileId = profile?.id ?? '';
-                  })
-                }
+                onChange={(profile) => updateAndRefresh((s) => (s.profileId = profile?.id ?? ''))}
               />
             </div>
 
             <div className="setting-row">
-              <label>Auto Mode</label>
-              <select
-                className="text_pole"
-                value={settings.autoMode}
-                onChange={(e) =>
-                  updateAndRefresh((s) => {
-                    s.autoMode = e.target.value as AutoModeOptions;
-                  })
-                }
-              >
-                <option value="none">None</option>
-                <option value="responses">Process responses</option>
-                <option value="inputs">Process inputs</option>
-                <option value="both">Process both</option>
-              </select>
+              <STInput
+                type="checkbox"
+                checked={settings.choicesEnabled}
+                label="Enable Choices"
+                onChange={(checked) => {
+                  const res = checked.currentTarget.checked;
+                  updateAndRefresh((s) => (s.choicesEnabled = res));
+                }}
+              />
+              <STInput
+                type="checkbox"
+                checked={settings.diceRollsEnabled}
+                label="Enable Automatic Dice Rolls"
+                onChange={(checked) => {
+                  const res = checked.currentTarget.checked;
+                  updateAndRefresh((s) => (s.diceRollsEnabled = res));
+                }}
+              />
+            </div>
+
+            <div className="setting-row">
+              <label>User Action Template</label>
+              <STTextarea
+                value={settings.userActionTemplate}
+                onChange={(e) => updateAndRefresh((s) => (s.userActionTemplate = e.target.value))}
+                rows={2}
+                placeholder="Use {{action}} for the user's input."
+              />
+              <label>Dice Roll Template</label>
+              <STTextarea
+                value={settings.diceRollTemplate}
+                onChange={(e) => updateAndRefresh((s) => (s.diceRollTemplate = e.target.value))}
+                rows={2}
+                placeholder="Use {{result}} for the dice number."
+              />
             </div>
 
             <div className="setting-row">
@@ -180,9 +170,7 @@ export const WTrackerSettings: FC = () => {
                 className="text_pole"
                 value={settings.promptEngineeringMode}
                 onChange={(e) =>
-                  updateAndRefresh((s) => {
-                    s.promptEngineeringMode = e.target.value as PromptEngineeringMode;
-                  })
+                  updateAndRefresh((s) => (s.promptEngineeringMode = e.target.value as PromptEngineeringMode))
                 }
               >
                 <option value="native">Native API</option>
@@ -192,9 +180,9 @@ export const WTrackerSettings: FC = () => {
             </div>
 
             <div className="setting-row">
-              <label>Schema Preset</label>
+              <label>World State Preset</label>
               <STPresetSelect
-                label="Schema Preset"
+                label="World State Preset"
                 items={schemaPresetItems}
                 value={settings.schemaPreset}
                 onChange={handleSchemaPresetChange}
@@ -204,18 +192,16 @@ export const WTrackerSettings: FC = () => {
                 enableDelete
                 enableRename
               />
-
               <div className="title_restorable">
-                <span>Schema</span>
+                <span>World State Schema</span>
                 <STButton className="fa-solid fa-undo" title="Restore default" onClick={restoreSchemaToDefault} />
               </div>
-
               <STTextarea value={schemaText} onChange={(e) => handleSchemaValueChange(e.target.value)} rows={4} />
               <STTextarea
                 value={settings.schemaPresets[settings.schemaPreset]?.html ?? ''}
                 onChange={(e) => handleSchemaHtmlChange(e.target.value)}
                 rows={4}
-                placeholder="Enter your schema HTML here..."
+                placeholder="Enter your World State HTML template here..."
               />
             </div>
 
@@ -318,22 +304,6 @@ export const WTrackerSettings: FC = () => {
                 onChange={(e) =>
                   updateAndRefresh((s) => {
                     s.includeLastXMessages = parseInt(e.target.value) || 0;
-                  })
-                }
-              />
-            </div>
-            <div className="setting-row">
-              <label>Include Last X WTracker Messages</label>
-              <input
-                type="number"
-                className="text_pole"
-                min="0"
-                step="1"
-                title="0 means none."
-                value={settings.includeLastXWTrackerMessages}
-                onChange={(e) =>
-                  updateAndRefresh((s) => {
-                    s.includeLastXWTrackerMessages = parseInt(e.target.value) || 0;
                   })
                 }
               />
