@@ -16,6 +16,8 @@ import {
   DEFAULT_PROMPT_XML,
   DEFAULT_SCHEMA_VALUE,
   DEFAULT_SCHEMA_HTML,
+  DEFAULT_USER_ACTION_TEMPLATE,
+  DEFAULT_DICE_ROLL_TEMPLATE,
   PromptEngineeringMode,
   defaultSettings,
   EXTENSION_KEY,
@@ -148,14 +150,36 @@ export const WTrackerSettings: FC = () => {
             </div>
 
             <div className="setting-row">
-              <label>User Action Template</label>
+              <div className="title_restorable">
+                <span>User Action Template</span>
+                <STButton
+                  className="fa-solid fa-undo"
+                  title="Restore user action template to default"
+                  onClick={() =>
+                    updateAndRefresh((s) => {
+                      s.userActionTemplate = DEFAULT_USER_ACTION_TEMPLATE;
+                    })
+                  }
+                />
+              </div>
               <STTextarea
                 value={settings.userActionTemplate}
                 onChange={(e) => updateAndRefresh((s) => (s.userActionTemplate = e.target.value))}
                 rows={2}
                 placeholder="Use {{action}} for the user's input."
               />
-              <label>Dice Roll Template</label>
+              <div className="title_restorable">
+                <span>Dice Roll Template</span>
+                <STButton
+                  className="fa-solid fa-undo"
+                  title="Restore dice roll template to default"
+                  onClick={() =>
+                    updateAndRefresh((s) => {
+                      s.diceRollTemplate = DEFAULT_DICE_ROLL_TEMPLATE;
+                    })
+                  }
+                />
+              </div>
               <STTextarea
                 value={settings.diceRollTemplate}
                 onChange={(e) => updateAndRefresh((s) => (s.diceRollTemplate = e.target.value))}

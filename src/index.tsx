@@ -106,8 +106,10 @@ async function generateTurn(action: string) {
     let userActionContent = action;
     if (settings.diceRollsEnabled) {
       const result = Math.floor(Math.random() * 20) + 1;
-      const diceTemplate = Handlebars.compile(settings.diceRollTemplate, { noEscape: true });
-      const actionTemplate = Handlebars.compile(settings.userActionTemplate, { noEscape: true });
+      const extendedDiceTemplate = globalContext.substituteParams(settings.diceRollTemplate);
+      const extendedActionTemplate = globalContext.substituteParams(settings.userActionTemplate);
+      const diceTemplate = Handlebars.compile(extendedDiceTemplate, { noEscape: true, strict: true });
+      const actionTemplate = Handlebars.compile(extendedActionTemplate, { noEscape: true, strict: true });
       userActionContent = `${actionTemplate({ action })} ${diceTemplate({ result })}`;
     }
     await sendChatMessage(userActionContent, 'system', 'System', user_avatar);
@@ -172,22 +174,26 @@ async function generateTurn(action: string) {
     combinedSchema.properties.worldStateUpdate = worldStateSchema;
 
     if (settings.promptEngineeringMode === PromptEngineeringMode.NATIVE) {
-      messages.push({ content: settings.prompt, role: 'user' });
+      const extendedPrompt = globalContext.substituteParams(settings.prompt);
+      messages.push({ content: extendedPrompt, role: 'user' });
       const result = await makeRequest(messages, {
         json_schema: { name: 'SMRP_Response', strict: true, value: combinedSchema },
       });
+      // @ts-ignore
       response = result?.content;
     } else {
       const format = settings.promptEngineeringMode as 'json' | 'xml';
       const promptTemplate = format === 'json' ? settings.promptJson : settings.promptXml;
       const exampleResponse = schemaToExample(combinedSchema, format);
-      const finalPrompt = Handlebars.compile(promptTemplate, { noEscape: true, strict: true })({
+      let finalPrompt = Handlebars.compile(promptTemplate, { noEscape: true, strict: true })({
         schema: JSON.stringify(combinedSchema, null, 2),
         example_response: exampleResponse,
       });
+      finalPrompt = globalContext.substituteParams(finalPrompt);
       messages.push({ content: finalPrompt, role: 'user' });
       const result = await makeRequest(messages);
       if (!result?.content) throw new Error('No response content received from AI.');
+      // @ts-ignore
       response = parseResponse(result.content as string, format, { schema: combinedSchema });
     }
 

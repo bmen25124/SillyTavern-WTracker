@@ -43,7 +43,7 @@ export const DEFAULT_PROMPT = `You are a master storyteller and Game Master (GM)
 2.  **Determine Outcome**: Use the dice roll to determine the success, failure, or degree of success of the user's action. A high roll is good, a low roll is bad. Be creative with the outcomes.
 3.  **Update the World**: Based on the outcome, update the world state. This includes time, location, character statuses, or any other relevant details. The world must feel persistent and reactive.
 4.  **Narrate the Story**: Write a compelling narrative describing the outcome of the user's action and the world's reaction.
-5.  **Provide New Choices**: If choices are enabled, present the user with 2-4 distinct and interesting choices for what they can do next. These choices should flow naturally from the narrative.
+5.  **Provide New Choices**: If choices are enabled, present the user with 2-4 distinct and interesting choices for what they can do next. The choices should be written in the third person from the {{user}}'s perspective (e.g., "{{user}} checks the old chest").
 6.  **Adhere to the Format**: Your entire response MUST be a single, valid, structured object that contains the narrative, the new choices (if applicable), and the complete, updated world state.`;
 
 export const DEFAULT_PROMPT_JSON = `You are a highly specialized AI Game Master. Your SOLE purpose is to generate a single, valid JSON object that strictly adheres to the provided JSON schema. This object drives an interactive roleplaying game.
@@ -118,45 +118,150 @@ export const DEFAULT_SCHEMA_VALUE: object = {
   description: 'Schema for tracking roleplay scene details (used as World State in SMRP)',
   type: 'object',
   properties: {
-    time: { type: 'string', description: 'Format: HH:MM:SS; MM/DD/YYYY (Day Name)' },
-    location: { type: 'string', description: 'Specific scene location' },
-    weather: { type: 'string', description: 'Current weather conditions' },
+    time: {
+      type: 'string',
+      description: 'Format: HH:MM:SS; MM/DD/YYYY (Day Name)',
+    },
+    location: {
+      type: 'string',
+      description: 'Specific scene location with increasing specificity',
+    },
+    weather: {
+      type: 'string',
+      description: 'Current weather conditions and temperature',
+    },
+    topics: {
+      type: 'object',
+      properties: {
+        primaryTopic: {
+          type: 'string',
+          description: '1-2 word main topic of interaction',
+        },
+        emotionalTone: {
+          type: 'string',
+          description: 'Dominant emotional tone of scene',
+        },
+        interactionTheme: {
+          type: 'string',
+          description: 'Type of character interaction',
+        },
+      },
+      required: ['primaryTopic', 'emotionalTone', 'interactionTheme'],
+    },
+    charactersPresent: {
+      type: 'array',
+      items: {
+        type: 'string',
+        description: 'Character name',
+      },
+      description: 'List of character names present in scene',
+    },
     characters: {
       type: 'array',
       items: {
         type: 'object',
         properties: {
-          name: { type: 'string', description: 'Character name' },
-          outfit: { type: 'string', description: 'Complete outfit' },
-          stateOfDress: { type: 'string', description: 'How put-together/disheveled character appears' },
+          name: {
+            type: 'string',
+            description: 'Character name',
+          },
+          hair: {
+            type: 'string',
+            description: 'Hairstyle and condition',
+          },
+          makeup: {
+            type: 'string',
+            description: "Makeup description or 'None'",
+          },
+          outfit: {
+            type: 'string',
+            description: 'Complete outfit including underwear',
+          },
+          stateOfDress: {
+            type: 'string',
+            description: 'How put-together/disheveled character appears',
+          },
+          postureAndInteraction: {
+            type: 'string',
+            description: "Character's physical positioning and interaction",
+          },
         },
-        required: ['name', 'outfit', 'stateOfDress'],
+        required: ['name', 'hair', 'makeup', 'outfit', 'stateOfDress', 'postureAndInteraction'],
       },
       description: 'Array of character objects',
     },
   },
-  required: ['time', 'location', 'weather', 'characters'],
+  required: ['time', 'location', 'weather', 'topics', 'charactersPresent', 'characters'],
 };
 
 export const DEFAULT_SCHEMA_HTML = `<div class="wtracker_default_mes_template">
     <h4>World State</h4>
     <table>
         <tbody>
-            <tr><td>Time:</td><td>{{data.time}}</td></tr>
-            <tr><td>Location:</td><td>{{data.location}}</td></tr>
-            <tr><td>Weather:</td><td>{{data.weather}}</td></tr>
+            <tr>
+                <td>Time:</td>
+                <td>{{data.time}}</td>
+            </tr>
+            <tr>
+                <td>Location:</td>
+                <td>{{data.location}}</td>
+            </tr>
+            <tr>
+                <td>Weather:</td>
+                <td>{{data.weather}}</td>
+            </tr>
         </tbody>
     </table>
+
+    <!-- Collapsible Detailed Tracker -->
     <details>
-        <summary><span>Characters</span></summary>
+        <summary><span>Tracker Details</span></summary>
+        <table>
+            <tbody>
+                <tr>
+                    <td>Topics:</td>
+                    <td>
+                        <!-- Accessing nested object properties -->
+                        {{data.topics.primaryTopic}}; {{data.topics.emotionalTone}}; {{data.topics.interactionTheme}}
+                    </td>
+                </tr>
+                <tr>
+                    <td>Present:</td>
+                    <td>
+                        <!-- Joining an array of strings. Assumes a 'join' helper. -->
+                        {{join data.charactersPresent ', '}}
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+
+        <!-- Character Details Section -->
         <div class="mes_wtracker_characters">
             {{#each data.characters as |character|}}
             <hr>
             <strong>{{character.name}}:</strong><br>
             <table>
                 <tbody>
-                    <tr><td>Outfit:</td><td>{{character.outfit}}</td></tr>
-                    <tr><td>State:</td><td>{{character.stateOfDress}}</td></tr>
+                    <tr>
+                        <td>Hair:</td>
+                        <td>{{character.hair}}</td>
+                    </tr>
+                    <tr>
+                        <td>Makeup:</td>
+                        <td>{{character.makeup}}</td>
+                    </tr>
+                    <tr>
+                        <td>Outfit:</td>
+                        <td>{{character.outfit}}</td>
+                    </tr>
+                    <tr>
+                        <td>State:</td>
+                        <td>{{character.stateOfDress}}</td>
+                    </tr>
+                    <tr>
+                        <td>Position:</td>
+                        <td>{{character.postureAndInteraction}}</td>
+                    </tr>
                 </tbody>
             </table>
             {{/each}}
@@ -168,6 +273,9 @@ export const DEFAULT_SCHEMA_HTML = `<div class="wtracker_default_mes_template">
 const VERSION = '0.1.0';
 const FORMAT_VERSION = 'F_1.0';
 export const EXTENSION_KEY = 'WTracker';
+
+export const DEFAULT_USER_ACTION_TEMPLATE = `{{user}}'s action: {{action}}`;
+export const DEFAULT_DICE_ROLL_TEMPLATE = `(Dice Roll 1d20: {{result}})`;
 
 export const defaultSettings: ExtensionSettings = {
   version: VERSION,
@@ -187,8 +295,8 @@ export const defaultSettings: ExtensionSettings = {
   includeLastXMessages: 0,
   choicesEnabled: true,
   diceRollsEnabled: true,
-  userActionTemplate: 'My action: {{action}}',
-  diceRollTemplate: '(Dice Roll 1d20: {{result}})',
+  userActionTemplate: DEFAULT_USER_ACTION_TEMPLATE,
+  diceRollTemplate: DEFAULT_DICE_ROLL_TEMPLATE,
   promptEngineeringMode: PromptEngineeringMode.NATIVE,
   promptJson: DEFAULT_PROMPT_JSON,
   promptXml: DEFAULT_PROMPT_XML,
